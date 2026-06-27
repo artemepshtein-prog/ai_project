@@ -24,7 +24,6 @@ except:
 
 
 def draw_text_outline(surface, text, font, x, y, color=(255, 255, 255)):
-    # Рисует текст с черной обводкой
     for dx, dy in [(-2, -2), (2, -2), (-2, 2), (2, 2), (-2, 0), (2, 0), (0, -2), (0, 2)]:
         surface.blit(font.render(text, True, (0, 0, 0)), (x + dx, y + dy))
     surface.blit(font.render(text, True, color), (x, y))
@@ -52,7 +51,6 @@ class Button:
         if hovered:
             pygame.draw.rect(surface, (255, 255, 255), self.rect, 3)
 
-        # Текст внутри кнопок теперь тоже с черной обводкой
         text_surf = font_medium.render(self.text, True, (255, 255, 255))
         text_rect = text_surf.get_rect(center=self.rect.center)
         for dx, dy in [(-2, -2), (2, -2), (-2, 2), (2, 2), (-2, 0), (2, 0), (0, -2), (0, 2)]:
@@ -146,14 +144,18 @@ class Game:
         self.btn_help = Button("ПОМОЩЬ", btn_x, 400, 300, 70)
         self.btn_creators = Button("СОЗДАТЕЛИ", btn_x, 500, 300, 70)
         self.btn_back = Button("В ГЛАВНОЕ МЕНЮ", WIDTH - 400, HEIGHT - 100, 350, 60)
-        self.btn_start_lvl = Button("НАЧАТЬ ИГРУ", WIDTH - 350, HEIGHT - 100, 300, 60)
-        self.btn_back_intro = Button("В ГЛАВНОЕ МЕНЮ", 50, HEIGHT - 100, 350, 60)
+        self.btn_start_lvl = Button("НАЧАТЬ ИГРУ", WIDTH // 2 - 150, HEIGHT - 100, 300, 60)
 
         self.px, self.py = 0, 0
         self.p_rect = pygame.Rect(0, 0, 40, 40)
         self.vy = 0
 
         self.cutscene_timer = 0
+
+        self.transition_timer = 0
+        self.next_state = ""
+        self.next_level = 1
+
         self.init_level(1)
 
     def trigger_death(self, level):
@@ -168,7 +170,8 @@ class Game:
             self.spawn_timer = 0
             self.level_1_timer = 0
             self.portal_spawned = False
-            self.portal_rect = pygame.Rect(WIDTH, HEIGHT // 2 - 75, 50, 150)
+            # ПОРТАЛ НЕ ЗАДЕВАЕТ ФРИТЮР (обрезан на 50 пикселей снизу)
+            self.portal_rect = pygame.Rect(WIDTH, 0, 80, HEIGHT - 50)
         elif lvl == 2:
             self.px, self.py = WIDTH // 2, HEIGHT - 120
             self.vy = 0
@@ -180,7 +183,7 @@ class Game:
                 self.knives.append(Knife(current_y, side))
                 current_y -= 160
             self.finish_y = current_y
-            self.portal_rect_lvl2 = pygame.Rect(WIDTH // 2 - 25, self.finish_y - 50, 50, 50)
+            self.portal_rect_lvl2 = pygame.Rect(500, self.finish_y - 50, 550, 50)
         elif lvl == 3:
             self.px, self.py = 100, 100
             self.maze_walls = [
@@ -204,7 +207,15 @@ class Game:
             p.update()
             if p.timer <= 0: self.particles.remove(p)
 
-        if self.state == "LEVEL_1":
+        if self.state == "TRANSITION":
+            if time.time() - self.transition_timer >= 2:
+                self.state = self.next_state
+                if self.next_state == "CUTSCENE":
+                    self.cutscene_timer = time.time()
+                else:
+                    self.init_level(self.next_level)
+
+        elif self.state == "LEVEL_1":
             self.vy += 0.5
             if keys[pygame.K_SPACE]:
                 self.vy = -8
@@ -221,8 +232,10 @@ class Game:
                 self.portal_spawned = True
                 self.portal_rect.x -= 3
                 if self.p_rect.colliderect(self.portal_rect):
-                    self.state = "INTRO_2"
-                    self.init_level(2)
+                    self.state = "TRANSITION"
+                    self.transition_timer = time.time()
+                    self.next_state = "INTRO_2"
+                    self.next_level = 2
 
             if not self.portal_spawned:
                 self.spawn_timer += 1
@@ -274,8 +287,10 @@ class Game:
                 self.trigger_death(2)
 
             if self.p_rect.colliderect(self.portal_rect_lvl2):
-                self.state = "INTRO_3"
-                self.init_level(3)
+                self.state = "TRANSITION"
+                self.transition_timer = time.time()
+                self.next_state = "INTRO_3"
+                self.next_level = 3
 
         elif self.state == "LEVEL_3":
             speed = 5
@@ -297,8 +312,10 @@ class Game:
                                                self.exit_rect.centery + random.randint(-20, 20), (255, 255, 255)))
 
             if self.p_rect.colliderect(self.exit_rect):
-                self.state = "CUTSCENE"
-                self.cutscene_timer = time.time()
+                self.state = "TRANSITION"
+                self.transition_timer = time.time()
+                self.next_state = "CUTSCENE"
+                self.next_level = 0
 
         elif self.state == "WIN":
             if keys[pygame.K_d] or keys[pygame.K_RIGHT]:
@@ -312,8 +329,7 @@ class Game:
         screen.fill((20, 20, 30))
 
         if self.state == "MENU":
-            # Главный заголовок теперь строго белый (255, 255, 255)
-            draw_centered_text(screen, "РОКЕТ БУЛЬБА:Обратно в Беларусь", font_large, 150, (255, 255, 255))
+            draw_centered_text(screen, "РОКЕТ БУЛЬБА: ОБРАТНО В БЕЛАРУСЬ", font_large, 150, (255, 255, 255))
             if self.btn_play.draw(screen, mouse_pos) and mouse_click: self.state = "INTRO_1"
             if self.btn_help.draw(screen, mouse_pos) and mouse_click: self.state = "HELP"
             if self.btn_creators.draw(screen, mouse_pos) and mouse_click: self.state = "CREATORS"
@@ -347,19 +363,20 @@ class Game:
             for i, line in enumerate(lines):
                 draw_centered_text(screen, line, font_small, 400 + i * 40)
 
+            self.btn_start_lvl.rect.x = WIDTH // 2 - 150
             if self.btn_start_lvl.draw(screen, mouse_pos) and mouse_click:
                 self.state = f"LEVEL_{lvl}"
                 time.sleep(0.2)
-            if self.btn_back_intro.draw(screen, mouse_pos) and mouse_click:
-                self.state = "MENU"
-                time.sleep(0.2)
+
+        elif self.state == "TRANSITION":
+            screen.fill((255, 255, 255))
 
         elif self.state == "LEVEL_1":
             screen.fill((50, 20, 20))
             pygame.draw.rect(screen, (255, 100, 0), (0, HEIGHT - 50, WIDTH, 50))
 
             if self.portal_spawned:
-                pygame.draw.ellipse(screen, (200, 50, 255), self.portal_rect)
+                pygame.draw.rect(screen, (200, 50, 255), self.portal_rect)
 
             for c in self.chips: c.draw(screen)
             pygame.draw.rect(screen, (255, 200, 50), self.p_rect)
@@ -367,6 +384,7 @@ class Game:
         elif self.state == "LEVEL_2":
             pygame.draw.rect(screen, (80, 50, 50), (500, 0, 550, HEIGHT))
             pygame.draw.rect(screen, (0, 0, 0), (500, HEIGHT - 80 - self.cam_y, 550, 800))
+
             pygame.draw.rect(screen, (200, 50, 255), (
             self.portal_rect_lvl2.x, self.portal_rect_lvl2.y - self.cam_y, self.portal_rect_lvl2.width,
             self.portal_rect_lvl2.height))
@@ -407,7 +425,7 @@ class Game:
             pygame.draw.rect(screen, p_color, (WIDTH // 2 - 25, ground_y - 50, 50, 50))
 
             if elapsed < 5:
-                draw_text_outline(screen, "Бульба бог: Здравствуй рокет бульба я Бульба бог.", font_small, WIDTH - 800,
+                draw_text_outline(screen, "Бульба бог: Здравствуй Бульба босс, я Бульба бог.", font_small, WIDTH - 800,
                                   50)
             elif elapsed < 10:
                 draw_text_outline(screen, "Бульба бог: я видел твое страдание и решил тебе помочь.", font_small,
@@ -415,10 +433,10 @@ class Game:
             elif elapsed < 12:
                 screen.fill((255, 255, 255))
             elif elapsed < 17:
-                draw_centered_text(screen, "Рокет бульба: Спасибо тебе Бульба босс из за тебя я снова картошка.",
+                draw_centered_text(screen, "Бульба босс: Спасибо тебе Бульба бог, из за тебя я снова картошка.",
                                    font_small, HEIGHT // 2 - 50)
             elif elapsed < 22:
-                draw_text_outline(screen, "Бульба босс: не за что продолжай свое путешествие Рокет бульба.", font_small,
+                draw_text_outline(screen, "Бульба бог: не за что, продолжай свое путешествие Бульба босс.", font_small,
                                   WIDTH - 900, 50)
             elif elapsed < 24:
                 screen.fill((255, 255, 255))
