@@ -6,21 +6,60 @@ import webbrowser
 import random
 
 pygame.init()
+pygame.mixer.init()  # Инициализируем звуковой движок
 
 WIDTH, HEIGHT = 1550, 800
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption("Рокет Бульба: Картофельный путь")
+pygame.display.set_caption("Рокет Бульба: ОБРАТНО В БЕЛАРУСЬ")
 clock = pygame.time.Clock()
 
 # === ШРИФТЫ ===
-try:
-    font_large = pygame.font.Font('fonts/main_font.ttf', 70)
-    font_medium = pygame.font.Font('fonts/main_font.ttf', 40)
-    font_small = pygame.font.Font('fonts/main_font.ttf', 25)
-except:
-    font_large = pygame.font.SysFont("Arial", 70, bold=True)
-    font_medium = pygame.font.SysFont("Arial", 40, bold=True)
-    font_small = pygame.font.SysFont("Arial", 25, bold=True)
+font_large = pygame.font.Font('font.ttf', 45)
+font_medium = pygame.font.Font('font.ttf', 24)
+font_small = pygame.font.Font('font.ttf', 20)
+
+# === ЗАГРУЗКА КАРТИНОК ===
+potato_sprite_1 = pygame.image.load('images/sprite_1.png').convert_alpha()
+potato_sprite_1 = pygame.transform.scale(potato_sprite_1, (40, 40))
+potato_sprite_2 = pygame.image.load('images/sprite_2.png').convert_alpha()
+potato_sprite_2 = pygame.transform.scale(potato_sprite_2, (40, 40))
+potato_sprite_3 = pygame.image.load('images/sprite_3.png').convert_alpha()
+potato_sprite_3 = pygame.transform.scale(potato_sprite_3, (40, 40))
+chips_circle = pygame.image.load('images/chips_circle.png').convert_alpha()
+chips_circle = pygame.transform.scale(chips_circle, (60, 60))
+chips_long = pygame.image.load('images/chips_long.png').convert_alpha()
+chips_long = pygame.transform.scale(chips_long, (30, 150))
+wall = pygame.image.load('images/wall.png').convert_alpha()
+wall = pygame.transform.scale(wall, (20, 20))
+portal_1 = pygame.image.load('images/portal_1.png').convert_alpha()
+portal_1 = pygame.transform.scale(portal_1, (80, 750))
+portal_2 = pygame.image.load('images/portal_2.png').convert_alpha()
+portal_2 = pygame.transform.scale(portal_2, (550, 50))
+knife = pygame.image.load('images/knife.png').convert_alpha()
+knife = pygame.transform.scale(knife, (80, 15))
+knife_2 = pygame.transform.flip(knife, True, False)
+bg_2 = pygame.image.load('images/bg_2.png').convert_alpha()
+bg_2 = pygame.transform.scale(bg_2, (550, 800))
+portal_3 = pygame.image.load('images/portal_3.png').convert_alpha()
+portal_3 = pygame.transform.scale(portal_3, (80, 80))
+bg_1 = pygame.image.load('images/fire.png').convert_alpha()
+bg_1 = pygame.transform.scale(bg_1, (1550, 80))
+bg_3 = pygame.image.load('images/bg_3.png').convert_alpha()
+bg_3 = pygame.transform.scale(bg_3, (1550, 800))
+intro = pygame.image.load('images/bg_5.png').convert_alpha()
+intro = pygame.transform.scale(intro, (1550, 800))
+flag = pygame.image.load('images/flag.png').convert_alpha()
+flag = pygame.transform.scale(flag, (110, 150))
+bolba_bog = pygame.image.load('images/bolba_bog.png').convert_alpha()
+bolba_bog = pygame.transform.scale(bolba_bog, (150, 150))
+final_bg = pygame.image.load('images/final_bg.png').convert_alpha()
+final_bg = pygame.transform.scale(final_bg, (1550, 800))
+grass = pygame.image.load('images/grass.png').convert_alpha()
+grass = pygame.transform.scale(grass, (1550, 100))
+bg_1_5 = pygame.image.load('images/final_bg.png').convert_alpha()
+bg_1_5 = pygame.transform.scale(bg_1_5, (1550, 800))
+maze_bg = pygame.image.load('images/maze.png').convert_alpha()
+maze_bg = pygame.transform.scale(maze_bg, (1550, 800))
 
 
 def draw_text_outline(surface, text, font, x, y, color=(255, 255, 255)):
@@ -93,9 +132,9 @@ class Chip:
 
     def draw(self, surface):
         if self.is_long:
-            pygame.draw.rect(surface, (255, 200, 50), self.rect)
+            surface.blit(chips_long, self.rect.topleft)
         else:
-            pygame.draw.ellipse(surface, (255, 220, 100), self.rect)
+            surface.blit(chips_circle, self.rect.topleft)
 
 
 class Knife:
@@ -126,11 +165,10 @@ class Knife:
                     self.stopped = True
 
     def draw(self, surface, cam_y):
-        pygame.draw.rect(surface, (200, 200, 200), (self.rect.x, self.rect.y - cam_y, self.width, self.height))
         if self.side == 'left':
-            pygame.draw.rect(surface, (100, 50, 0), (self.rect.x, self.rect.y - cam_y, 30, self.height))
+            surface.blit(knife, (self.rect.x, self.rect.y - cam_y))
         else:
-            pygame.draw.rect(surface, (100, 50, 0), (self.rect.right - 30, self.rect.y - cam_y, 30, self.height))
+            surface.blit(knife_2, (self.rect.x, self.rect.y - cam_y))
 
 
 # === ГЛАВНЫЙ КЛАСС ИГРЫ ===
@@ -139,30 +177,53 @@ class Game:
         self.state = "MENU"
         self.particles = []
 
-        btn_x = WIDTH // 2 - 150
-        self.btn_play = Button("ИГРАТЬ", btn_x, 300, 300, 70)
-        self.btn_help = Button("ПОМОЩЬ", btn_x, 400, 300, 70)
-        self.btn_creators = Button("СОЗДАТЕЛИ", btn_x, 500, 300, 70)
-        self.btn_back = Button("В ГЛАВНОЕ МЕНЮ", WIDTH - 400, HEIGHT - 100, 350, 60)
-        self.btn_start_lvl = Button("НАЧАТЬ ИГРУ", WIDTH // 2 - 150, HEIGHT - 100, 300, 60)
+        btn_w = 600
+        btn_x = WIDTH // 2 - btn_w // 2
+
+        self.btn_play = Button("ИГРАТЬ", btn_x, 300, btn_w, 70)
+        self.btn_help = Button("ПОМОЩЬ", btn_x, 400, btn_w, 70)
+        self.btn_creators = Button("СОЗДАТЕЛИ", btn_x, 500, btn_w, 70)
+
+        self.btn_back = Button("В ГЛАВНОЕ МЕНЮ", WIDTH - btn_w - 50, HEIGHT - 100, btn_w, 60)
+        self.btn_start_lvl = Button("НАЧАТЬ ИГРУ", btn_x, HEIGHT - 100, btn_w, 60)
 
         self.px, self.py = 0, 0
         self.p_rect = pygame.Rect(0, 0, 40, 40)
         self.vy = 0
 
-        self.cutscene_timer = 0
+        self.facing_right = True
 
+        self.cutscene_timer = 0
         self.transition_timer = 0
         self.next_state = ""
         self.next_level = 1
 
+        # Переменная для отслеживания текущей музыки
+        self.current_music = None
+
+        self.dark_surf = pygame.Surface((WIDTH, HEIGHT))
+        self.dark_surf.set_colorkey((255, 255, 255))
+
         self.init_level(1)
+
+    # Функция для переключения музыки
+    def change_music(self, filename):
+        if self.current_music != filename:
+            self.current_music = filename
+            try:
+                # Добавляем путь 'music/' перед именем файла
+                pygame.mixer.music.load(f"music/{filename}")
+                pygame.mixer.music.set_volume(0.5)
+                pygame.mixer.music.play(-1)
+            except Exception as e:
+                print(f"Не удалось загрузить музыку music/{filename}: {e}")
 
     def trigger_death(self, level):
         self.init_level(level)
 
     def init_level(self, lvl):
         self.particles.clear()
+        self.facing_right = True
         if lvl == 1:
             self.px, self.py = 300, HEIGHT // 2
             self.vy = 0
@@ -170,7 +231,6 @@ class Game:
             self.spawn_timer = 0
             self.level_1_timer = 0
             self.portal_spawned = False
-            # ПОРТАЛ НЕ ЗАДЕВАЕТ ФРИТЮР (обрезан на 50 пикселей снизу)
             self.portal_rect = pygame.Rect(WIDTH, 0, 80, HEIGHT - 50)
         elif lvl == 2:
             self.px, self.py = WIDTH // 2, HEIGHT - 120
@@ -199,6 +259,21 @@ class Game:
             self.exit_rect = pygame.Rect(1400, 650, 80, 80)
 
     def update(self):
+        # === УПРАВЛЕНИЕ МУЗЫКОЙ ===
+        if self.state in ["MENU", "HELP", "CREATORS"] or self.state.startswith("INTRO_"):
+            self.change_music("menu_music.mp3")
+        elif self.state == "TRANSITION":
+            self.change_music("cutscene.mp3")
+        elif self.state == "LEVEL_1":
+            self.change_music("location_1.mp3")
+        elif self.state == "LEVEL_2":
+            self.change_music("location_2.mp3")
+        elif self.state == "LEVEL_3":
+            self.change_music("location_3.mp3")
+        elif self.state in ["CUTSCENE", "WIN"]:
+            self.change_music("final.mp3")
+        # ==========================
+
         mouse_pos = pygame.mouse.get_pos()
         mouse_click = pygame.mouse.get_pressed()[0]
         keys = pygame.key.get_pressed()
@@ -254,8 +329,12 @@ class Game:
                 self.trigger_death(1)
 
         elif self.state == "LEVEL_2":
-            if keys[pygame.K_a] or keys[pygame.K_LEFT]: self.px -= 12
-            if keys[pygame.K_d] or keys[pygame.K_RIGHT]: self.px += 12
+            if keys[pygame.K_a] or keys[pygame.K_LEFT]:
+                self.px -= 12
+                self.facing_right = False
+            if keys[pygame.K_d] or keys[pygame.K_RIGHT]:
+                self.px += 12
+                self.facing_right = True
 
             if self.px < 500: self.px = 500
             if self.px > 1010: self.px = 1010
@@ -295,10 +374,14 @@ class Game:
         elif self.state == "LEVEL_3":
             speed = 5
             old_x, old_y = self.px, self.py
+
+            if keys[pygame.K_a] or keys[pygame.K_LEFT]:
+                self.px -= speed
+            if keys[pygame.K_d] or keys[pygame.K_RIGHT]:
+                self.px += speed
+
             if keys[pygame.K_w] or keys[pygame.K_UP]: self.py -= speed
             if keys[pygame.K_s] or keys[pygame.K_DOWN]: self.py += speed
-            if keys[pygame.K_a] or keys[pygame.K_LEFT]: self.px -= speed
-            if keys[pygame.K_d] or keys[pygame.K_RIGHT]: self.px += speed
 
             self.p_rect.topleft = (self.px, self.py)
 
@@ -361,9 +444,9 @@ class Game:
                          "Но у тебя еще есть задача: выбраться из лабиринта других чипсов."]
 
             for i, line in enumerate(lines):
-                draw_centered_text(screen, line, font_small, 400 + i * 40)
+                draw_centered_text(screen, line, font_small, 400 + i * 50)
 
-            self.btn_start_lvl.rect.x = WIDTH // 2 - 150
+            self.btn_start_lvl.rect.x = WIDTH // 2 - 300
             if self.btn_start_lvl.draw(screen, mouse_pos) and mouse_click:
                 self.state = f"LEVEL_{lvl}"
                 time.sleep(0.2)
@@ -372,64 +455,64 @@ class Game:
             screen.fill((255, 255, 255))
 
         elif self.state == "LEVEL_1":
-            screen.fill((50, 20, 20))
-            pygame.draw.rect(screen, (255, 100, 0), (0, HEIGHT - 50, WIDTH, 50))
+            screen.blit(bg_1_5, (0, 0))
+            screen.blit(bg_1, (0, HEIGHT - 80))
 
             if self.portal_spawned:
-                pygame.draw.rect(screen, (200, 50, 255), self.portal_rect)
+                screen.blit(portal_1, self.portal_rect)
 
             for c in self.chips: c.draw(screen)
-            pygame.draw.rect(screen, (255, 200, 50), self.p_rect)
+            screen.blit(potato_sprite_1, self.p_rect.topleft)
 
         elif self.state == "LEVEL_2":
-            pygame.draw.rect(screen, (80, 50, 50), (500, 0, 550, HEIGHT))
+            screen.blit(bg_2, (500, 0))
             pygame.draw.rect(screen, (0, 0, 0), (500, HEIGHT - 80 - self.cam_y, 550, 800))
-
-            pygame.draw.rect(screen, (200, 50, 255), (
-            self.portal_rect_lvl2.x, self.portal_rect_lvl2.y - self.cam_y, self.portal_rect_lvl2.width,
-            self.portal_rect_lvl2.height))
+            screen.blit(portal_2, (self.portal_rect_lvl2.x, self.portal_rect_lvl2.y - self.cam_y))
 
             for k in self.knives: k.draw(screen, self.cam_y)
-            pygame.draw.rect(screen, (255, 200, 50), (self.px, self.py - self.cam_y, 40, 40))
+
+            img = potato_sprite_2
+            if not self.facing_right: img = pygame.transform.flip(img, True, False)
+            screen.blit(img, (self.px, self.py - self.cam_y))
+
             pygame.draw.rect(screen, (0, 0, 0), (0, 0, 500, HEIGHT))
             pygame.draw.rect(screen, (0, 0, 0), (1050, 0, 500, HEIGHT))
 
         elif self.state == "LEVEL_3":
-            screen.fill((50, 50, 50))
+            screen.blit(maze_bg, (0, 0))
+
             for w in self.maze_walls:
-                pygame.draw.rect(screen, (100, 40, 40), w)
+                for wx in range(w.x, w.x + w.width, 20):
+                    for wy in range(w.y, w.y + w.height, 20):
+                        screen.blit(wall, (wx, wy))
 
-            pygame.draw.rect(screen, (255, 255, 255), self.exit_rect)
+            screen.blit(portal_3, self.exit_rect)
+
             for p in self.particles: p.draw(screen)
+            screen.blit(potato_sprite_3, self.p_rect.topleft)
 
-            pygame.draw.rect(screen, (255, 0, 0), self.p_rect)
-
-            dark = pygame.Surface((WIDTH, HEIGHT))
-            dark.fill((0, 0, 0))
-            pygame.draw.circle(dark, (255, 255, 255), (self.px + 20, self.py + 20), 80)
-            dark.set_colorkey((255, 255, 255))
-            screen.blit(dark, (0, 0))
+            self.dark_surf.fill((0, 0, 0))
+            pygame.draw.circle(self.dark_surf, (255, 255, 255), (self.px + 20, self.py + 20), 80)
+            screen.blit(self.dark_surf, (0, 0))
 
         elif self.state == "CUTSCENE":
             elapsed = time.time() - self.cutscene_timer
-
             ground_y = HEIGHT - 100
-            pygame.draw.rect(screen, (135, 206, 235), (0, 0, WIDTH, ground_y))
-            pygame.draw.rect(screen, (34, 139, 34), (0, ground_y, WIDTH, HEIGHT - ground_y))
 
-            pygame.draw.circle(screen, (255, 255, 255), (WIDTH - 150, 150), 50)
-            pygame.draw.circle(screen, (255, 255, 255), (WIDTH - 100, 150), 60)
-            pygame.draw.rect(screen, (255, 255, 200), (WIDTH - 150, 120, 60, 60))
+            screen.blit(final_bg, (0, 0))
+            screen.blit(grass, (0, ground_y))
+            screen.blit(bolba_bog, (1350, 90))
 
-            p_color = (255, 0, 0) if elapsed < 12 else (255, 200, 50)
-            pygame.draw.rect(screen, p_color, (WIDTH // 2 - 25, ground_y - 50, 50, 50))
+            if elapsed < 12:
+                screen.blit(potato_sprite_3, (WIDTH // 2 - 25, ground_y - 40))
+            else:
+                scaled_img = pygame.transform.scale(potato_sprite_2, (50, 50))
+                screen.blit(scaled_img, (WIDTH // 2 - 25, ground_y - 50))
 
             if elapsed < 5:
-                draw_text_outline(screen, "Бульба бог: Здравствуй Бульба босс, я Бульба бог.", font_small, WIDTH - 800,
-                                  50)
+                draw_text_outline(screen, "Бульба бог: Здравствуй Бульба босс, я Бульба бог.", font_small, 50, 50)
             elif elapsed < 10:
-                draw_text_outline(screen, "Бульба бог: я видел твое страдание и решил тебе помочь.", font_small,
-                                  WIDTH - 850, 50)
+                draw_text_outline(screen, "Бульба бог: я видел твое страдание и решил тебе помочь.", font_small, 50, 50)
             elif elapsed < 12:
                 screen.fill((255, 255, 255))
             elif elapsed < 17:
@@ -437,7 +520,7 @@ class Game:
                                    font_small, HEIGHT // 2 - 50)
             elif elapsed < 22:
                 draw_text_outline(screen, "Бульба бог: не за что, продолжай свое путешествие Бульба босс.", font_small,
-                                  WIDTH - 900, 50)
+                                  50, 50)
             elif elapsed < 24:
                 screen.fill((255, 255, 255))
             else:
@@ -446,22 +529,19 @@ class Game:
 
         elif self.state == "WIN":
             ground_y = HEIGHT - 100
-            pygame.draw.rect(screen, (135, 206, 235), (0, 0, WIDTH, ground_y))
-            pygame.draw.rect(screen, (34, 139, 34), (0, ground_y, WIDTH, HEIGHT - ground_y))
-
-            flag_x = 1300
-            pygame.draw.rect(screen, (200, 200, 200), (flag_x, ground_y - 150, 10, 150))
-            pygame.draw.rect(screen, (255, 0, 0), (flag_x + 10, ground_y - 150, 100, 40))
-            pygame.draw.rect(screen, (0, 200, 0), (flag_x + 10, ground_y - 110, 100, 20))
+            screen.blit(final_bg, (0, 0))
+            screen.blit(grass, (0, ground_y))
+            screen.blit(flag, (1300, 550))
 
             draw_text_outline(screen, "ИДИ ПРЯМО ->", font_medium, 50, 50)
-            self.p_rect.y = ground_y - 40
-            pygame.draw.rect(screen, (255, 200, 50), self.p_rect)
 
-            if self.px >= flag_x - 50:
-                self.px = flag_x - 50
-                pygame.draw.rect(screen, (50, 50, 50), (WIDTH // 2 - 350, HEIGHT // 2 - 150, 700, 300))
-                pygame.draw.rect(screen, (255, 255, 255), (WIDTH // 2 - 350, HEIGHT // 2 - 150, 700, 300), 5)
+            self.p_rect.y = ground_y - 40
+            screen.blit(potato_sprite_2, self.p_rect.topleft)
+
+            if self.px >= 1250:
+                self.px = 1250
+                pygame.draw.rect(screen, (50, 50, 50), (WIDTH // 2 - 400, HEIGHT // 2 - 150, 800, 300))
+                pygame.draw.rect(screen, (255, 255, 255), (WIDTH // 2 - 400, HEIGHT // 2 - 150, 800, 300), 5)
                 draw_centered_text(screen, "ПОЗДРАВЛЯЕМ, ТЫ ПРОШЕЛ ИГРУ!", font_medium, HEIGHT // 2 - 50)
 
         pygame.display.flip()
